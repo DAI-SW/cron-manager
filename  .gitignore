@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Cron Manager spezifisch
+~/.cron_manager/
+*.db
+*.log
+config.ini
+cronjobs_export_*
+cron_failure_report_*
+crontab_backup_*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
