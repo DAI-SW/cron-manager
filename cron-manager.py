@@ -29,21 +29,21 @@ def check_and_install_packages():
         'questionary': 'questionary',
         'crontab': 'python-crontab'
     }
-    
+
     missing_packages = []
-    
+
     for module, package in required_packages.items():
         try:
             __import__(module)
         except ImportError:
             missing_packages.append(package)
-    
+
     if missing_packages:
         print(f"Fehlende Pakete erkannt: {', '.join(missing_packages)}")
-        
+
         # Prüfe ob wir in einer virtualenv sind
         in_virtualenv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
-        
+
         if os.geteuid() == 0 and in_virtualenv:
             print("\n⚠️  WARNUNG: Sie führen das Script als Root in einer virtuellen Umgebung aus.")
             print("Dies kann zu Problemen führen. Empfohlene Lösungen:")
@@ -64,7 +64,7 @@ fi
             print("\n2. Oder installieren Sie die Pakete systemweit:")
             print(f"   sudo pip install {' '.join(missing_packages)}")
             sys.exit(1)
-        
+
         # Versuche automatische Installation
         response = input(f"\nMöchten Sie die fehlenden Pakete automatisch installieren? (j/n): ")
         if response.lower() in ['j', 'ja', 'y', 'yes']:
@@ -111,17 +111,17 @@ class CronManager:
         self.user_cron = CronTab(user=True)
         self.system_cron = None
         self.is_root = os.geteuid() == 0
-        
+
         # Erkenne Distribution
         self.distro = self._detect_distribution()
-        
+
         # Debug-Ausgabe
         console.print(f"[cyan]Distribution: {self.distro}[/cyan]")
         if self.is_root:
             console.print("[green]✓ Root-Rechte erkannt[/green]")
         else:
-            console.print("[yellow]⚠ Keine Root-Rechte - System-Features eingeschränkt[/yellow]")
-        
+            console.print("[yellow]⚠  Keine Root-Rechte - System-Features eingeschränkt[/yellow]")
+
         # System-Cron Pfade (kompatibel mit Debian-basierten Systemen)
         self.system_paths = {
             'crontab': '/etc/crontab',
@@ -131,22 +131,22 @@ class CronManager:
             'monthly': '/etc/cron.monthly',
             'cron.d': '/etc/cron.d'
         }
-        
+
         # Alternative Pfade für verschiedene Distributionen
         self.alt_paths = {
             'anacron': '/etc/anacrontab',
             'systemd': '/etc/systemd/system'
         }
-        
+
         if self.is_root:
             self._load_system_crontabs()
-        
+
         # Initialisiere Logging-Datenbank
         self.init_logging_db()
-        
+
         # Lade Konfiguration
         self.config = self.load_config()
-    
+
     def _detect_distribution(self) -> str:
         """Erkennt die Linux-Distribution"""
         try:
@@ -164,7 +164,7 @@ class CronManager:
             return 'Unknown'
         except:
             return 'Unknown'
-    
+
     def _load_system_crontabs(self):
         """Lädt System-Crontabs mit besserer Fehlerbehandlung"""
         # Versuche /etc/crontab zu laden
@@ -173,42 +173,43 @@ class CronManager:
                 # Lese die Datei zuerst manuell um das Format zu prüfen
                 with open('/etc/crontab', 'r') as f:
                     content = f.read()
-                
+
                 # Prüfe ob die Datei Inhalt hat
                 if content.strip():
                     # Verwende system=True für System-Crontabs
                     self.system_cron = CronTab(tabfile='/etc/crontab', user=False)
                     console.print("[green]✓ System-Crontab geladen[/green]")
                 else:
-                    console.print("[yellow]⚠ /etc/crontab ist leer[/yellow]")
-                    
+                    console.print("[yellow]⚠  /etc/crontab ist leer[/yellow]")
+
             except Exception as e:
-                console.print(f"[yellow]⚠ Fehler beim Laden von /etc/crontab: {str(e)}[/yellow]")
+                console.print(f"[yellow]⚠  Fehler beim Laden von /etc/crontab: {str(e)}[/yellow]")
                 # Fallback: Versuche die Datei manuell zu parsen
                 self._manual_parse_system_crontab()
         else:
-            console.print("[yellow]⚠ /etc/crontab nicht gefunden[/yellow]")
-    
+            console.print("[yellow]⚠  /etc/crontab nicht gefunden[/yellow]")
+
     def _manual_parse_system_crontab(self):
         """Manuelles Parsen der System-Crontab falls CronTab fehlschlägt"""
         try:
             with open('/etc/crontab', 'r') as f:
                 lines = f.readlines()
-            
+
             console.print("[yellow]Verwende manuellen Parser für System-Crontab[/yellow]")
             # Hier könnten wir einen eigenen Parser implementieren
             # Für jetzt setzen wir system_cron auf None
             self.system_cron = None
         except:
             self.system_cron = None
+
     def init_logging_db(self):
         """Initialisiert die SQLite-Datenbank für Job-Logs"""
         db_path = os.path.expanduser("~/.cron_manager/logs.db")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        
+
         self.conn = sqlite3.connect(db_path)
         self.cursor = self.conn.cursor()
-        
+
         # Erstelle Tabellen
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS job_logs (
@@ -223,7 +224,7 @@ class CronManager:
                 status TEXT
             )
         ''')
-        
+
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS job_failures (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -234,14 +235,14 @@ class CronManager:
                 notified BOOLEAN DEFAULT 0
             )
         ''')
-        
+
         self.conn.commit()
-    
+
     def load_config(self):
         """Lädt die Konfiguration für E-Mail-Benachrichtigungen"""
         config_path = os.path.expanduser("~/.cron_manager/config.ini")
         config = configparser.ConfigParser()
-        
+
         if os.path.exists(config_path):
             config.read(config_path)
         else:
@@ -257,34 +258,317 @@ class CronManager:
                 'notify_on_failure': 'true',
                 'notify_on_success': 'false'
             }
-            
+
             config['monitoring'] = {
                 'enabled': 'true',
                 'check_interval': '300',  # 5 Minuten
                 'max_failures': '3'
             }
-            
+
             config['templates'] = {
                 'custom_scripts_path': '~/scripts',
                 'enable_custom_templates': 'true'
             }
-            
+
             os.makedirs(os.path.dirname(config_path), exist_ok=True)
             with open(config_path, 'w') as f:
                 config.write(f)
-        
+
         return config
-    
+
+    def _select_job_template(self) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Wählt eine Job-Vorlage aus"""
+        templates = {
+            "Bash-Script ausführen": {
+                "command": "/pfad/zum/script.sh",
+                "schedule": "0 2 * * *",
+                "comment": "Führt ein Bash-Script aus"
+            },
+            "Script bei Systemstart": {
+                "command": "/pfad/zum/startup-script.sh",
+                "schedule": "@reboot",
+                "comment": "Wird bei jedem Systemstart ausgeführt"
+            },
+            "Backup-Script": {
+                "command": "tar -czf /backup/backup_$(date +%Y%m%d).tar.gz /home",
+                "schedule": "0 2 * * *",
+                "comment": "Tägliches Backup um 2 Uhr"
+            },
+            "System-Update": {
+                "command": "apt update && apt upgrade -y",
+                "schedule": "0 3 * * 0",
+                "comment": "Wöchentliches System-Update (Sonntags 3 Uhr)"
+            },
+            "Log-Rotation": {
+                "command": "find /var/log -name '*.log' -mtime +30 -delete",
+                "schedule": "0 0 * * *",
+                "comment": "Tägliches Löschen alter Logs"
+            },
+            "Datenbank-Backup": {
+                "command": "mysqldump -u root database_name > /backup/db_$(date +%Y%m%d).sql",
+                "schedule": "0 1 * * *",
+                "comment": "Tägliches Datenbank-Backup um 1 Uhr"
+            },
+            "Temp-Dateien löschen": {
+                "command": "find /tmp -type f -atime +7 -delete",
+                "schedule": "0 4 * * *",
+                "comment": "Tägliches Löschen alter Temp-Dateien"
+            },
+            "Disk-Space Check": {
+                "command": "df -h | mail -s 'Disk Space Report' admin@example.com",
+                "schedule": "0 8 * * 1",
+                "comment": "Wöchentlicher Speicherplatz-Report (Montags)"
+            }
+        }
+
+        template_choices = list(templates.keys()) + ["Zurück"]
+
+        choice = questionary.select(
+            "Wählen Sie eine Vorlage:",
+            choices=template_choices
+        ).ask()
+
+        if choice == "Zurück" or not choice:
+            return None, None, None
+
+        template = templates[choice]
+
+        # Zeige Vorlage und erlaube Anpassungen
+        console.print(Panel(
+            f"[yellow]Befehl:[/yellow] {template['command']}\n"
+            f"[yellow]Zeitplan:[/yellow] {template['schedule']}\n"
+            f"[yellow]Kommentar:[/yellow] {template['comment']}",
+            title=f"Vorlage: {choice}",
+            border_style="cyan"
+        ))
+
+        modify = questionary.confirm(
+            "Möchten Sie die Vorlage anpassen?",
+            default=True if choice in ["Bash-Script ausführen", "Script bei Systemstart"] else False
+        ).ask()
+
+        if modify:
+            # Bei Script-Templates: Dateiauswahl anbieten
+            if choice in ["Bash-Script ausführen", "Script bei Systemstart"]:
+                use_file_browser = questionary.confirm(
+                    "Möchten Sie eine Datei auswählen?",
+                    default=True
+                ).ask()
+
+                if use_file_browser:
+                    # Zeige verfügbare Scripts
+                    script_paths = [
+                        os.path.expanduser("~/scripts"),
+                        os.path.expanduser("~/bin"),
+                        "/usr/local/bin",
+                        "Anderer Pfad..."
+                    ]
+
+                    search_path = questionary.select(
+                        "Wo soll nach Scripts gesucht werden?",
+                        choices=script_paths
+                    ).ask()
+
+                    if search_path == "Anderer Pfad...":
+                        search_path = questionary.text("Pfad eingeben:").ask()
+
+                    if search_path and os.path.exists(search_path) and os.path.isdir(search_path):
+                        scripts = []
+                        for file in os.listdir(search_path):
+                            filepath = os.path.join(search_path, file)
+                            if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
+                                scripts.append(filepath)
+
+                        if scripts:
+                            command = questionary.select(
+                                "Script auswählen:",
+                                choices=scripts + ["Manuell eingeben"]
+                            ).ask()
+
+                            if command == "Manuell eingeben":
+                                command = questionary.text(
+                                    "Script-Pfad:",
+                                    default=template['command']
+                                ).ask()
+                        else:
+                            console.print("[yellow]Keine ausführbaren Scripts gefunden[/yellow]")
+                            command = questionary.text(
+                                "Script-Pfad:",
+                                default=template['command']
+                            ).ask()
+                    else:
+                        command = questionary.text(
+                            "Script-Pfad:",
+                            default=template['command']
+                        ).ask()
+                else:
+                    command = questionary.text(
+                        "Script-Pfad:",
+                        default=template['command']
+                    ).ask()
+            else:
+                command = questionary.text(
+                    "Befehl:",
+                    default=template['command']
+                ).ask()
+
+            # Zeitplan nur ändern wenn nicht @reboot Template
+            if choice != "Script bei Systemstart":
+                schedule_choice = questionary.select(
+                    "Zeitplan ändern?",
+                    choices=["Beibehalten", "Neu wählen"]
+                ).ask()
+
+                if schedule_choice == "Neu wählen":
+                    new_schedule_choice = questionary.select(
+                        "Zeitplan wählen:",
+                        choices=[
+                            "Jede Minute",
+                            "Stündlich",
+                            "Täglich",
+                            "Wöchentlich",
+                            "Monatlich",
+                            "@reboot (Bei Systemstart)",
+                            "Benutzerdefiniert"
+                        ]
+                    ).ask()
+                    schedule = self._create_schedule(new_schedule_choice)
+                else:
+                    schedule = template['schedule']
+            else:
+                schedule = template['schedule']
+
+            comment = questionary.text(
+                "Kommentar:",
+                default=template['comment']
+            ).ask()
+        else:
+            command = template['command']
+            schedule = template['schedule']
+            comment = template['comment']
+
+        return command, schedule, comment
+
+    def _create_schedule(self, schedule_choice: str) -> Optional[str]:
+        """Erstellt einen Cron-Zeitplan basierend auf der Auswahl"""
+        if not schedule_choice:
+            return None
+
+        if schedule_choice == "Jede Minute":
+            return "* * * * *"
+
+        elif schedule_choice == "Stündlich":
+            minute = questionary.text("Minute (0-59):", default="0").ask()
+            return f"{minute} * * * *"
+
+        elif schedule_choice == "Täglich":
+            time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} * * *"
+            except:
+                console.print("[red]Ungültiges Zeitformat. Verwende 00:00[/red]")
+                return "0 0 * * *"
+
+        elif schedule_choice == "Wöchentlich":
+            weekday = questionary.select(
+                "Wochentag:",
+                choices=["Montag", "Dienstag", "Mittwoch", "Donnerstag",
+                        "Freitag", "Samstag", "Sonntag"]
+            ).ask()
+            weekday_num = ["Montag", "Dienstag", "Mittwoch", "Donnerstag",
+                          "Freitag", "Samstag", "Sonntag"].index(weekday) + 1
+            time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} * * {weekday_num % 7}"
+            except:
+                console.print("[red]Ungültiges Zeitformat. Verwende 00:00[/red]")
+                return f"0 0 * * {weekday_num % 7}"
+
+        elif schedule_choice == "Monatlich":
+            day = questionary.text("Tag des Monats (1-31):", default="1").ask()
+            time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} {day} * *"
+            except:
+                console.print("[red]Ungültiges Zeitformat. Verwende 00:00[/red]")
+                return f"0 0 {day} * *"
+
+        elif schedule_choice == "@reboot (Bei Systemstart)":
+            return "@reboot"
+
+        else:  # Benutzerdefiniert
+            console.print("[yellow]Cron-Format: Minute Stunde Tag Monat Wochentag[/yellow]")
+            console.print("[yellow]Beispiel: 0 2 * * * (Täglich um 2 Uhr)[/yellow]")
+            return questionary.text("Cron-Ausdruck:").ask()
+
+    def create_logging_wrapper(self, command: str) -> str:
+        """Erstellt einen Wrapper für Logging"""
+        wrapper_dir = os.path.expanduser("~/.cron_manager/wrappers")
+        os.makedirs(wrapper_dir, exist_ok=True)
+
+        # Erstelle eindeutigen Wrapper-Namen
+        import hashlib
+        wrapper_name = hashlib.md5(command.encode()).hexdigest()[:10]
+        wrapper_path = os.path.join(wrapper_dir, f"wrapper_{wrapper_name}.sh")
+
+        db_path = os.path.expanduser("~/.cron_manager/logs.db")
+
+        wrapper_content = f"""#!/bin/bash
+# Auto-generierter Logging-Wrapper
+DB_PATH="{db_path}"
+COMMAND="{command}"
+USER="$(whoami)"
+START_TIME=$(date +%s)
+
+# Führe Befehl aus und capture output
+TEMP_OUT=$(mktemp)
+TEMP_ERR=$(mktemp)
+
+$COMMAND > $TEMP_OUT 2> $TEMP_ERR
+EXIT_CODE=$?
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+STDOUT=$(cat $TEMP_OUT)
+STDERR=$(cat $TEMP_ERR)
+
+# Status bestimmen
+if [ $EXIT_CODE -eq 0 ]; then
+    STATUS="success"
+else
+    STATUS="failed"
+fi
+
+# Log in Datenbank
+sqlite3 "$DB_PATH" "INSERT INTO job_logs (command, user, exit_code, stdout, stderr, duration_seconds, status) VALUES ('$COMMAND', '$USER', $EXIT_CODE, '$STDOUT', '$STDERR', $DURATION, '$STATUS');"
+
+# Cleanup
+rm -f $TEMP_OUT $TEMP_ERR
+
+exit $EXIT_CODE
+"""
+
+        with open(wrapper_path, 'w') as f:
+            f.write(wrapper_content)
+
+        os.chmod(wrapper_path, 0o755)
+
+        return wrapper_path
+
     def add_job(self):
         """Fügt einen neuen Cronjob hinzu"""
         console.print(Panel("📝 Neuen Cronjob hinzufügen", style="bold blue"))
-        
+
         # Frage ob Template verwendet werden soll
         use_template = questionary.confirm(
             "Möchten Sie eine Vorlage verwenden?",
             default=False
         ).ask()
-        
+
         if use_template:
             command, schedule, comment = self._select_job_template()
             if not command:  # Benutzer hat abgebrochen
@@ -295,10 +579,10 @@ class CronManager:
                 "Befehl eingeben:",
                 validate=lambda text: True if text.strip() else "Befehl darf nicht leer sein"
             ).ask()
-            
+
             if not command:
                 return
-            
+
             # Zeitplan wählen
             schedule_choice = questionary.select(
                 "Zeitplan wählen:",
@@ -312,37 +596,37 @@ class CronManager:
                     "Benutzerdefiniert"
                 ]
             ).ask()
-            
+
             if not schedule_choice:
                 return
-            
+
             # Zeitplan erstellen
             schedule = self._create_schedule(schedule_choice)
             if not schedule:
                 return
-            
+
             # Kommentar hinzufügen
             comment = questionary.text("Kommentar (optional):").ask()
-        
+
         # Logging aktivieren?
         enable_logging = questionary.confirm(
             "Logging für diesen Job aktivieren?",
             default=True
         ).ask()
-        
+
         # Wrapper-Command erstellen wenn Logging aktiviert
         if enable_logging:
             wrapper_script = self.create_logging_wrapper(command)
             actual_command = wrapper_script
         else:
             actual_command = command
-        
+
         # Job erstellen
         try:
             job = self.user_cron.new(command=actual_command, comment=comment)
             job.setall(schedule)
             self.user_cron.write()
-            
+
             console.print(Panel(
                 f"[green]✓ Cronjob erfolgreich hinzugefügt![/green]\n"
                 f"Befehl: {command}\n"
@@ -352,16 +636,283 @@ class CronManager:
                 border_style="green"
             ))
         except Exception as e:
-            console.print(Panel(f"[red]Fehler: {str(e)}[/red]", 
+            console.print(Panel(f"[red]Fehler: {str(e)}[/red]",
                               title="Fehler", border_style="red"))
-    
+
+    def edit_job(self, jobs: List[dict]):
+        """Bearbeitet oder führt einen Job aus"""
+        if not jobs:
+            console.print("[yellow]Keine Jobs zum Bearbeiten vorhanden[/yellow]")
+            return
+
+        job_num = questionary.text(
+            "Job-Nummer eingeben:",
+            validate=lambda text: text.isdigit() and 1 <= int(text) <= len(jobs)
+        ).ask()
+
+        if not job_num:
+            return
+
+        job_data = jobs[int(job_num) - 1]
+
+        action = questionary.select(
+            "Aktion wählen:",
+            choices=[
+                "Job aktivieren/deaktivieren",
+                "Job sofort ausführen",
+                "Job bearbeiten",
+                "Job löschen",
+                "Zurück"
+            ]
+        ).ask()
+
+        if action == "Zurück" or not action:
+            return
+
+        if action == "Job aktivieren/deaktivieren":
+            if job_data['job']:
+                job_data['job'].enable(not job_data['enabled'])
+                self.user_cron.write()
+                status = "aktiviert" if not job_data['enabled'] else "deaktiviert"
+                console.print(f"[green]✓ Job {status}[/green]")
+            else:
+                console.print("[red]Dieser Job kann nicht über Python bearbeitet werden[/red]")
+
+        elif action == "Job sofort ausführen":
+            console.print(f"[cyan]Führe aus: {job_data['command']}[/cyan]")
+            try:
+                result = subprocess.run(
+                    job_data['command'],
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                console.print(Panel(
+                    f"[yellow]Exit Code:[/yellow] {result.returncode}\n"
+                    f"[yellow]Output:[/yellow]\n{result.stdout}\n"
+                    f"[yellow]Errors:[/yellow]\n{result.stderr}",
+                    title="Ausführungsergebnis",
+                    border_style="cyan"
+                ))
+            except subprocess.TimeoutExpired:
+                console.print("[red]Timeout: Job wurde nach 5 Minuten abgebrochen[/red]")
+            except Exception as e:
+                console.print(f"[red]Fehler: {str(e)}[/red]")
+
+        elif action == "Job löschen":
+            confirm = Confirm.ask(f"Job wirklich löschen?\n{job_data['command']}")
+            if confirm and job_data['job']:
+                self.user_cron.remove(job_data['job'])
+                self.user_cron.write()
+                console.print("[green]✓ Job gelöscht[/green]")
+
+        elif action == "Job bearbeiten":
+            if not job_data['job']:
+                console.print("[red]Dieser Job kann nicht über Python bearbeitet werden[/red]")
+                return
+
+            new_command = questionary.text(
+                "Neuer Befehl:",
+                default=job_data['command']
+            ).ask()
+
+            if new_command:
+                job_data['job'].command = new_command
+                self.user_cron.write()
+                console.print("[green]✓ Job aktualisiert[/green]")
+
+    def view_job_logs(self):
+        """Zeigt Job-Logs an"""
+        console.print(Panel("📜 Job-Logs", style="bold cyan"))
+
+        # Letzte 20 Logs
+        self.cursor.execute("""
+            SELECT timestamp, command, user, exit_code, status, duration_seconds
+            FROM job_logs
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """)
+
+        logs = self.cursor.fetchall()
+
+        if not logs:
+            console.print("[yellow]Keine Logs vorhanden[/yellow]")
+            return
+
+        table = Table(title="Letzte Job-Ausführungen", box=box.ROUNDED)
+        table.add_column("Zeit", style="cyan")
+        table.add_column("Befehl", style="white", max_width=40)
+        table.add_column("User", style="blue")
+        table.add_column("Status", style="bold")
+        table.add_column("Dauer", style="magenta")
+
+        for log in logs:
+            timestamp, command, user, exit_code, status, duration = log
+
+            # Formatiere Zeitstempel
+            dt = datetime.fromisoformat(timestamp)
+            time_str = dt.strftime("%d.%m %H:%M")
+
+            # Kürze Befehl
+            cmd_display = command[:40] + "..." if len(command) > 40 else command
+
+            # Status-Farbe
+            if status == "success":
+                status_display = "[green]✓ Erfolg[/green]"
+            else:
+                status_display = f"[red]✗ Fehler ({exit_code})[/red]"
+
+            # Dauer
+            duration_str = f"{duration:.2f}s" if duration else "N/A"
+
+            table.add_row(time_str, cmd_display, user, status_display, duration_str)
+
+        console.print(table)
+
+        # Detail-Ansicht anbieten
+        show_detail = questionary.confirm(
+            "Möchten Sie Details zu einem Log sehen?",
+            default=False
+        ).ask()
+
+        if show_detail:
+            log_id = questionary.text("Log-Nummer (1-20):").ask()
+            if log_id and log_id.isdigit():
+                idx = int(log_id) - 1
+                if 0 <= idx < len(logs):
+                    self._show_log_detail(logs[idx])
+
+    def _show_log_detail(self, log_data):
+        """Zeigt Details eines Log-Eintrags"""
+        self.cursor.execute("""
+            SELECT timestamp, command, user, exit_code, stdout, stderr, duration_seconds, status
+            FROM job_logs
+            WHERE timestamp = ? AND command = ?
+        """, (log_data[0], log_data[1]))
+
+        detail = self.cursor.fetchone()
+        if detail:
+            timestamp, command, user, exit_code, stdout, stderr, duration, status = detail
+
+            console.print(Panel(
+                f"[yellow]Zeit:[/yellow] {timestamp}\n"
+                f"[yellow]Befehl:[/yellow] {command}\n"
+                f"[yellow]Benutzer:[/yellow] {user}\n"
+                f"[yellow]Exit Code:[/yellow] {exit_code}\n"
+                f"[yellow]Status:[/yellow] {status}\n"
+                f"[yellow]Dauer:[/yellow] {duration}s\n\n"
+                f"[yellow]STDOUT:[/yellow]\n{stdout or '(leer)'}\n\n"
+                f"[yellow]STDERR:[/yellow]\n{stderr or '(leer)'}",
+                title="Log-Details",
+                border_style="cyan"
+            ))
+
+    def monitor_jobs(self):
+        """Einfache Job-Überwachung"""
+        console.print(Panel("👁️  Job-Überwachung", style="bold cyan"))
+
+        # Zeige Fehler der letzten 24 Stunden
+        self.cursor.execute("""
+            SELECT timestamp, command, error_message, notified
+            FROM job_failures
+            WHERE timestamp > datetime('now', '-1 day')
+            ORDER BY timestamp DESC
+        """)
+
+        failures = self.cursor.fetchall()
+
+        if not failures:
+            console.print("[green]✓ Keine Fehler in den letzten 24 Stunden[/green]")
+            return
+
+        table = Table(title="Job-Fehler (24h)", box=box.ROUNDED)
+        table.add_column("Zeit", style="cyan")
+        table.add_column("Befehl", style="white", max_width=40)
+        table.add_column("Fehler", style="red", max_width=30)
+        table.add_column("Benachrichtigt", style="yellow")
+
+        for failure in failures:
+            timestamp, command, error, notified = failure
+            dt = datetime.fromisoformat(timestamp)
+            time_str = dt.strftime("%d.%m %H:%M")
+            cmd_display = command[:40] + "..." if len(command) > 40 else command
+            error_display = error[:30] + "..." if error and len(error) > 30 else (error or "N/A")
+            notified_str = "Ja" if notified else "Nein"
+
+            table.add_row(time_str, cmd_display, error_display, notified_str)
+
+        console.print(table)
+
+    def configure_notifications(self):
+        """Konfiguriert E-Mail-Benachrichtigungen"""
+        console.print(Panel("📧 E-Mail-Benachrichtigungen konfigurieren", style="bold cyan"))
+
+        enabled = questionary.confirm(
+            "E-Mail-Benachrichtigungen aktivieren?",
+            default=self.config.getboolean('email', 'enabled', fallback=False)
+        ).ask()
+
+        self.config.set('email', 'enabled', str(enabled).lower())
+
+        if enabled:
+            smtp_server = questionary.text(
+                "SMTP-Server:",
+                default=self.config.get('email', 'smtp_server', fallback='smtp.gmail.com')
+            ).ask()
+
+            smtp_port = questionary.text(
+                "SMTP-Port:",
+                default=self.config.get('email', 'smtp_port', fallback='587')
+            ).ask()
+
+            sender = questionary.text(
+                "Absender-E-Mail:",
+                default=self.config.get('email', 'sender', fallback='')
+            ).ask()
+
+            recipient = questionary.text(
+                "Empfänger-E-Mail:",
+                default=self.config.get('email', 'recipient', fallback='')
+            ).ask()
+
+            password = questionary.password(
+                "E-Mail-Passwort (wird verschlüsselt gespeichert):"
+            ).ask()
+
+            notify_failure = questionary.confirm(
+                "Bei Fehlern benachrichtigen?",
+                default=True
+            ).ask()
+
+            notify_success = questionary.confirm(
+                "Bei Erfolg benachrichtigen?",
+                default=False
+            ).ask()
+
+            # Speichere Konfiguration
+            self.config.set('email', 'smtp_server', smtp_server)
+            self.config.set('email', 'smtp_port', smtp_port)
+            self.config.set('email', 'sender', sender)
+            self.config.set('email', 'recipient', recipient)
+            self.config.set('email', 'password', password)  # In Produktion: verschlüsseln!
+            self.config.set('email', 'notify_on_failure', str(notify_failure).lower())
+            self.config.set('email', 'notify_on_success', str(notify_success).lower())
+
+        # Speichere Konfiguration
+        config_path = os.path.expanduser("~/.cron_manager/config.ini")
+        with open(config_path, 'w') as f:
+            self.config.write(f)
+
+        console.print("[green]✓ Konfiguration gespeichert[/green]")
+
     def create_backup(self):
         """Erstellt ein Backup der Crontab"""
         backup_dir = os.path.expanduser("~/.cron_manager/backups")
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         # Wähle Backup-Typ
         backup_type = questionary.select(
             "Was soll gesichert werden?",
@@ -372,10 +923,10 @@ class CronManager:
                 "Zurück"
             ]
         ).ask()
-        
+
         if backup_type == "Zurück" or not backup_type:
             return
-        
+
         if backup_type == "Nur Benutzer-Crontab":
             filename = os.path.join(backup_dir, f"crontab_user_{timestamp}.txt")
             try:
@@ -389,10 +940,10 @@ class CronManager:
                 ))
             except Exception as e:
                 console.print(f"[red]Fehler: {str(e)}[/red]")
-        
+
         elif backup_type == "Alle verfügbaren Crontabs":
             backup_files = []
-            
+
             # Benutzer-Crontab
             user_file = os.path.join(backup_dir, f"crontab_user_{timestamp}.txt")
             with open(user_file, 'w') as f:
@@ -400,115 +951,100 @@ class CronManager:
                 for job in self.user_cron:
                     f.write(f"{job}\n")
             backup_files.append(user_file)
-            
+
             # System-Crontabs (wenn Root)
             if self.is_root:
                 if os.path.exists('/etc/crontab'):
                     system_file = os.path.join(backup_dir, f"crontab_system_{timestamp}.txt")
                     subprocess.run(['cp', '/etc/crontab', system_file])
                     backup_files.append(system_file)
-                
+
                 # Cron.d
                 if os.path.exists('/etc/cron.d'):
                     cron_d_file = os.path.join(backup_dir, f"cron_d_{timestamp}.tar.gz")
                     subprocess.run(['tar', '-czf', cron_d_file, '-C', '/etc', 'cron.d'])
                     backup_files.append(cron_d_file)
-            
+
             console.print(Panel(
-                f"[green]✓ Backup erstellt:[/green]\n" + 
+                f"[green]✓ Backup erstellt:[/green]\n" +
                 "\n".join([f"  • {os.path.basename(f)}" for f in backup_files]),
                 title="Backup erfolgreich",
                 border_style="green"
             ))
-        
+
         elif backup_type == "Komplettes Backup (inkl. Logs & Config)":
             archive_name = os.path.join(backup_dir, f"cron_manager_complete_{timestamp}.tar.gz")
-            
+
             with console.status("[yellow]Erstelle komplettes Backup...[/yellow]"):
                 # Temporäres Verzeichnis für Backup
                 temp_dir = f"/tmp/cron_backup_{timestamp}"
                 os.makedirs(temp_dir, exist_ok=True)
-                
+
                 # Crontabs
                 with open(f"{temp_dir}/user_crontab.txt", 'w') as f:
                     for job in self.user_cron:
                         f.write(f"{job}\n")
-                
+
                 # Logs-Datenbank
                 if os.path.exists(os.path.expanduser("~/.cron_manager/logs.db")):
-                    subprocess.run(['cp', os.path.expanduser("~/.cron_manager/logs.db"), 
+                    subprocess.run(['cp', os.path.expanduser("~/.cron_manager/logs.db"),
                                   f"{temp_dir}/logs.db"])
-                
+
                 # Konfiguration
                 if os.path.exists(os.path.expanduser("~/.cron_manager/config.ini")):
-                    subprocess.run(['cp', os.path.expanduser("~/.cron_manager/config.ini"), 
+                    subprocess.run(['cp', os.path.expanduser("~/.cron_manager/config.ini"),
                                   f"{temp_dir}/config.ini"])
-                
+
                 # Archiv erstellen
                 subprocess.run(['tar', '-czf', archive_name, '-C', '/tmp', f"cron_backup_{timestamp}"])
-                
+
                 # Aufräumen
                 subprocess.run(['rm', '-rf', temp_dir])
-            
+
+            file_size = os.path.getsize(archive_name) / 1024 / 1024
             console.print(Panel(
                 f"[green]✓ Komplettes Backup erstellt:[/green]\n{archive_name}\n\n"
-                f"[yellow]Größe:[/yellow] {os.path.getsize(archive_name) / 1024 / 1024:.2f} MB",
+                f"[yellow]Größe:[/yellow] {file_size:.2f} MB",
                 title="Backup erfolgreich",
                 border_style="green"
             ))
-    
+
     def get_cron_type(self) -> str:
         """Fragt ab, welche Crontab bearbeitet werden soll"""
         choices = ["Benutzer-Crontab"]
-        
+
         if self.is_root:
             # Füge nur verfügbare Optionen hinzu
             if os.path.exists('/etc/crontab'):
                 choices.append("System-Crontab (/etc/crontab)")
-            
+
             if os.path.exists('/etc/cron.d') and os.path.isdir('/etc/cron.d'):
                 choices.append("Cron.d Verzeichnis (/etc/cron.d)")
-            
+
             # Prüfe ob periodische Verzeichnisse existieren
             periodic_exists = False
             for period in ['hourly', 'daily', 'weekly', 'monthly']:
                 if os.path.exists(f'/etc/cron.{period}'):
                     periodic_exists = True
                     break
-            
+
             if periodic_exists:
                 choices.append("Periodische Jobs (hourly/daily/weekly/monthly)")
-            
+
             if len(choices) == 1:  # Nur Benutzer-Crontab verfügbar
-                console.print("[yellow]⚠ Keine System-Cron-Verzeichnisse gefunden[/yellow]")
-        
+                console.print("[yellow]⚠  Keine System-Cron-Verzeichnisse gefunden[/yellow]")
+
         choice = questionary.select(
             "Welche Crontab möchten Sie bearbeiten?",
             choices=choices + ["Zurück"]
         ).ask()
-        
+
         return choice
-        """Fragt ab, welche Crontab bearbeitet werden soll"""
-        choices = ["Benutzer-Crontab"]
-        
-        if self.is_root:
-            choices.extend([
-                "System-Crontab (/etc/crontab)",
-                "Cron.d Verzeichnis (/etc/cron.d)",
-                "Periodische Jobs (hourly/daily/weekly/monthly)"
-            ])
-        
-        choice = questionary.select(
-            "Welche Crontab möchten Sie bearbeiten?",
-            choices=choices + ["Zurück"]
-        ).ask()
-        
-        return choice
-    
+
     def list_all_jobs(self, cron_type: str = "user") -> List[dict]:
         """Listet alle Cronjobs basierend auf dem Typ auf"""
         jobs = []
-        
+
         if cron_type == "user" or cron_type == "Benutzer-Crontab":
             try:
                 for job in self.user_cron:
@@ -523,16 +1059,15 @@ class CronManager:
                     })
             except Exception as e:
                 console.print(f"[red]Fehler beim Laden der Benutzer-Crontab: {str(e)}[/red]")
-        
+
         elif cron_type == "System-Crontab (/etc/crontab)":
             if not self.is_root:
                 console.print("[red]Root-Rechte erforderlich für System-Crontab[/red]")
                 return jobs
-                
+
             if self.system_cron:
                 try:
                     for job in self.system_cron:
-                        # System crontab hat das Format: min hour day month weekday user command
                         jobs.append({
                             'command': job.command,
                             'schedule': str(job.slices),
@@ -546,25 +1081,25 @@ class CronManager:
                     console.print(f"[red]Fehler beim Laden der System-Crontab: {str(e)}[/red]")
             else:
                 console.print("[yellow]System-Crontab konnte nicht geladen werden[/yellow]")
-        
+
         elif cron_type == "Periodische Jobs (hourly/daily/weekly/monthly)":
             if not self.is_root:
                 console.print("[red]Root-Rechte erforderlich für periodische Jobs[/red]")
                 return jobs
             jobs.extend(self._list_periodic_jobs())
-        
+
         elif cron_type == "Cron.d Verzeichnis (/etc/cron.d)":
             if not self.is_root:
                 console.print("[red]Root-Rechte erforderlich für /etc/cron.d[/red]")
                 return jobs
             jobs.extend(self._list_cron_d_jobs())
-        
+
         return jobs
-    
+
     def _list_periodic_jobs(self) -> List[dict]:
         """Listet Jobs aus den periodischen Verzeichnissen auf"""
         jobs = []
-        
+
         for period in ['hourly', 'daily', 'weekly', 'monthly']:
             path = self.system_paths[period]
             if os.path.exists(path) and os.path.isdir(path):
@@ -572,7 +1107,7 @@ class CronManager:
                     for script in os.listdir(path):
                         if script.startswith('.'):  # Versteckte Dateien überspringen
                             continue
-                            
+
                         script_path = os.path.join(path, script)
                         if os.path.isfile(script_path) and os.access(script_path, os.X_OK):
                             # Prüfe ob es ein Text-Script ist (kein Binärfile)
@@ -593,21 +1128,21 @@ class CronManager:
                                 pass
                 except Exception as e:
                     console.print(f"[yellow]Warnung beim Lesen von {path}: {str(e)}[/yellow]")
-        
+
         return jobs
-    
+
     def _list_cron_d_jobs(self) -> List[dict]:
         """Listet Jobs aus /etc/cron.d auf"""
         jobs = []
         cron_d_path = self.system_paths['cron.d']
-        
+
         if os.path.exists(cron_d_path) and os.path.isdir(cron_d_path):
             try:
                 for filename in os.listdir(cron_d_path):
                     # Überspringe bestimmte Systemdateien
                     if filename in ['.', '..', '.placeholder', 'README']:
                         continue
-                        
+
                     filepath = os.path.join(cron_d_path, filename)
                     if os.path.isfile(filepath):
                         try:
@@ -628,9 +1163,9 @@ class CronManager:
                             jobs.extend(self._manual_parse_cron_d_file(filepath, filename))
             except Exception as e:
                 console.print(f"[yellow]Warnung beim Lesen von {cron_d_path}: {str(e)}[/yellow]")
-        
+
         return jobs
-    
+
     def _manual_parse_cron_d_file(self, filepath: str, filename: str) -> List[dict]:
         """Manuelles Parsen einer cron.d Datei"""
         jobs = []
@@ -641,14 +1176,14 @@ class CronManager:
                     # Überspringe Kommentare und leere Zeilen
                     if not line or line.startswith('#'):
                         continue
-                    
+
                     # Einfaches Parsen: min hour day month weekday user command
                     parts = line.split(None, 6)
                     if len(parts) >= 7:
                         schedule = ' '.join(parts[:5])
                         user = parts[5]
                         command = parts[6]
-                        
+
                         jobs.append({
                             'command': command,
                             'schedule': schedule,
@@ -660,40 +1195,40 @@ class CronManager:
                         })
         except Exception as e:
             console.print(f"[yellow]Konnte {filepath} nicht parsen: {str(e)}[/yellow]")
-        
+
         return jobs
-    
+
     def display_jobs_table(self, cron_type: str = "user"):
         """Zeigt Cronjobs in einer schönen Tabelle an"""
         jobs = self.list_all_jobs(cron_type)
-        
-        title = "🕐 Aktuelle Cronjobs"
+
+        title = "🕒 Aktuelle Cronjobs"
         if cron_type != "user":
             title += f" - {cron_type}"
-        
+
         table = Table(title=title, box=box.ROUNDED)
-        
+
         table.add_column("Nr.", style="cyan", no_wrap=True, width=4)
         table.add_column("Zeitplan", style="magenta", width=20)
-        table.add_column("Befehl", style="green", width=60, no_wrap=False)  # Vergrößert und Wrap erlaubt
+        table.add_column("Befehl", style="green", width=60, no_wrap=False)
         table.add_column("Benutzer", style="blue", width=10)
         table.add_column("Quelle", style="yellow", width=15)
         table.add_column("Status", style="bold", width=10)
-        
+
         if not jobs:
-            console.print(Panel("[yellow]Keine Cronjobs gefunden[/yellow]", 
+            console.print(Panel("[yellow]Keine Cronjobs gefunden[/yellow]",
                               title="Info", border_style="yellow"))
             return jobs
-        
+
         for idx, job in enumerate(jobs, 1):
             status = "[green]✓ Aktiv[/green]" if job['enabled'] else "[red]✗ Inaktiv[/red]"
-            
+
             # Zeitplan formatieren
             schedule = self._format_schedule(job['schedule'])
-            
+
             # Befehl NICHT kürzen - volle Länge anzeigen
             command = job['command']
-            
+
             table.add_row(
                 str(idx),
                 schedule,
@@ -702,10 +1237,10 @@ class CronManager:
                 job['source'],
                 status
             )
-        
+
         console.print(table)
         return jobs
-    
+
     def _format_schedule(self, schedule: str) -> str:
         """Formatiert den Cron-Zeitplan in lesbare Form"""
         # Spezielle Syntax
@@ -721,13 +1256,13 @@ class CronManager:
                 '@reboot': 'Bei Neustart'
             }
             return translations.get(schedule, schedule)
-        
+
         parts = schedule.split()
         if len(parts) != 5:
             return schedule
-        
+
         minute, hour, day, month, weekday = parts
-        
+
         # Spezielle Fälle
         if minute == "0" and hour == "0" and day == "*" and month == "*" and weekday == "*":
             return "Täglich um Mitternacht"
@@ -741,31 +1276,31 @@ class CronManager:
             return "Wöchentlich (Sonntags)"
         elif minute == "0" and hour == "0" and day == "1" and month == "*" and weekday == "*":
             return "Monatlich (1. Tag)"
-        
+
         # Standard Format
         return f"{minute} {hour} {day} {month} {weekday}"
-    
+
     def export_jobs(self):
         """Exportiert Cronjobs in verschiedene Formate"""
         format_choice = questionary.select(
             "Export-Format wählen:",
             choices=["JSON", "CSV", "Crontab-Format", "Markdown", "Zurück"]
         ).ask()
-        
+
         if format_choice == "Zurück" or not format_choice:
             return
-        
+
         cron_type = self.get_cron_type()
         if cron_type == "Zurück":
             return
-        
+
         jobs = self.list_all_jobs(cron_type)
         if not jobs:
             console.print("[yellow]Keine Jobs zum Exportieren vorhanden[/yellow]")
             return
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         if format_choice == "JSON":
             filename = f"cronjobs_export_{timestamp}.json"
             export_data = []
@@ -778,10 +1313,10 @@ class CronManager:
                     'user': job['user'],
                     'source': job['source']
                 })
-            
+
             with open(filename, 'w') as f:
                 json.dump(export_data, f, indent=2)
-        
+
         elif format_choice == "CSV":
             filename = f"cronjobs_export_{timestamp}.csv"
             with open(filename, 'w') as f:
@@ -789,7 +1324,7 @@ class CronManager:
                 for job in jobs:
                     f.write(f'"{job["schedule"]}","{job["command"]}","{job["user"]}",'
                            f'"{job["source"]}",{job["enabled"]},"{job["comment"]}"\n')
-        
+
         elif format_choice == "Crontab-Format":
             filename = f"cronjobs_export_{timestamp}.cron"
             with open(filename, 'w') as f:
@@ -801,7 +1336,7 @@ class CronManager:
                     else:
                         f.write(f"{job['schedule']} {job['command']}\n")
                     f.write("\n")
-        
+
         elif format_choice == "Markdown":
             filename = f"cronjobs_export_{timestamp}.md"
             with open(filename, 'w') as f:
@@ -813,35 +1348,35 @@ class CronManager:
                     status = "Aktiv" if job['enabled'] else "Inaktiv"
                     f.write(f"| {job['schedule']} | {job['command']} | {job['user']} | "
                            f"{job['source']} | {status} |\n")
-        
+
         console.print(Panel(
             f"[green]✓ Export erfolgreich: {filename}[/green]",
             title="Export abgeschlossen",
             border_style="green"
         ))
-    
+
     def import_jobs(self):
         """Importiert Cronjobs aus einer Datei"""
         files = glob.glob("cronjobs_export_*.json") + glob.glob("*.cron")
-        
+
         if not files:
             console.print("[yellow]Keine Import-Dateien gefunden[/yellow]")
             return
-        
+
         file_choice = questionary.select(
             "Datei zum Importieren wählen:",
             choices=files + ["Zurück"]
         ).ask()
-        
+
         if file_choice == "Zurück" or not file_choice:
             return
-        
+
         if file_choice.endswith('.json'):
             with open(file_choice, 'r') as f:
                 jobs = json.load(f)
-            
+
             console.print(f"[cyan]Gefunden: {len(jobs)} Jobs[/cyan]")
-            
+
             if Confirm.ask("Möchten Sie diese Jobs importieren?"):
                 imported = 0
                 for job_data in track(jobs, description="Importiere Jobs..."):
@@ -857,16 +1392,16 @@ class CronManager:
                             imported += 1
                     except Exception as e:
                         console.print(f"[red]Fehler beim Import: {str(e)}[/red]")
-                
+
                 self.user_cron.write()
                 console.print(f"[green]✓ {imported} Jobs importiert[/green]")
-    
+
     def add_system_job(self):
         """Fügt einen System-Cronjob hinzu (nur für Root)"""
         if not self.is_root:
             console.print("[red]Fehler: Root-Rechte erforderlich![/red]")
             return
-        
+
         location = questionary.select(
             "Wo soll der Job hinzugefügt werden?",
             choices=[
@@ -876,38 +1411,77 @@ class CronManager:
                 "Zurück"
             ]
         ).ask()
-        
+
         if location == "Zurück" or not location:
             return
-        
+
         if location == "/etc/crontab":
             self._add_to_system_crontab()
         elif location == "/etc/cron.d/ (eigene Datei)":
             self._add_to_cron_d()
         elif location == "Periodisch (hourly/daily/weekly/monthly)":
             self._add_periodic_job()
-    
+
+    def _add_to_system_crontab(self):
+        """Fügt einen Job zur System-Crontab hinzu"""
+        console.print("[yellow]Warnung: Direktes Bearbeiten von /etc/crontab nicht empfohlen[/yellow]")
+        console.print("[yellow]Verwenden Sie stattdessen /etc/cron.d/[/yellow]")
+
+        if not Confirm.ask("Trotzdem fortfahren?"):
+            return
+
+        command = questionary.text("Befehl:").ask()
+        user = questionary.text("Benutzer:", default="root").ask()
+        schedule = self._get_schedule_input()
+
+        if command and schedule:
+            line = f"{schedule} {user} {command}\n"
+
+
+
+    def _add_to_system_crontab(self):
+        """Fügt einen Job zur System-Crontab hinzu"""
+        console.print("[yellow]Warnung: Direktes Bearbeiten von /etc/crontab nicht empfohlen[/yellow]")
+        console.print("[yellow]Verwenden Sie stattdessen /etc/cron.d/[/yellow]")
+
+        if not Confirm.ask("Trotzdem fortfahren?"):
+            return
+
+        command = questionary.text("Befehl:").ask()
+        user = questionary.text("Benutzer:", default="root").ask()
+        schedule = self._get_schedule_input()
+
+        if command and schedule:
+            line = f"{schedule} {user} {command}\n"
+
+            try:
+                with open('/etc/crontab', 'a') as f:
+                    f.write(line)
+                console.print("[green]✓ Job zur System-Crontab hinzugefügt[/green]")
+            except Exception as e:
+                console.print(f"[red]Fehler: {str(e)}[/red]")
+
     def _add_to_cron_d(self):
         """Fügt einen Job zu /etc/cron.d hinzu"""
         filename = questionary.text(
             "Dateiname (ohne Pfad):",
-            validate=lambda x: x.replace('-', '').replace('_', '').isalnum()
+            validate=lambda x: x.replace('-', '').replace('_', '').isalnum() if x else False
         ).ask()
-        
+
         if not filename:
             return
-        
+
         filepath = os.path.join(self.system_paths['cron.d'], filename)
-        
+
         command = questionary.text("Befehl:").ask()
         user = questionary.text("Benutzer:", default="root").ask()
         schedule = self._get_schedule_input()
-        
+
         content = f"# Erstellt von Cron Manager\n"
         content += f"SHELL=/bin/bash\n"
         content += f"PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n\n"
         content += f"{schedule} {user} {command}\n"
-        
+
         try:
             with open(filepath, 'w') as f:
                 f.write(content)
@@ -915,27 +1489,27 @@ class CronManager:
             console.print(f"[green]✓ Job erstellt in {filepath}[/green]")
         except Exception as e:
             console.print(f"[red]Fehler: {str(e)}[/red]")
-    
+
     def _add_periodic_job(self):
         """Fügt ein Script zu den periodischen Jobs hinzu"""
         period = questionary.select(
             "Ausführungsintervall:",
             choices=["hourly", "daily", "weekly", "monthly"]
         ).ask()
-        
+
         if not period:
             return
-        
+
         script_name = questionary.text(
             "Script-Name:",
-            validate=lambda x: x.replace('-', '').replace('_', '').isalnum()
+            validate=lambda x: x.replace('-', '').replace('_', '').isalnum() if x else False
         ).ask()
-        
+
         if not script_name:
             return
-        
+
         script_path = os.path.join(self.system_paths[period], script_name)
-        
+
         console.print("[cyan]Geben Sie das Script ein (beenden mit Strg+D):[/cyan]")
         lines = []
         try:
@@ -943,11 +1517,11 @@ class CronManager:
                 lines.append(input())
         except EOFError:
             pass
-        
+
         content = "#!/bin/bash\n"
         content += "# Erstellt von Cron Manager\n"
         content += "\n".join(lines)
-        
+
         try:
             with open(script_path, 'w') as f:
                 f.write(content)
@@ -955,7 +1529,7 @@ class CronManager:
             console.print(f"[green]✓ Script erstellt: {script_path}[/green]")
         except Exception as e:
             console.print(f"[red]Fehler: {str(e)}[/red]")
-    
+
     def _get_schedule_input(self) -> str:
         """Hilfsfunktion für Zeitplan-Eingabe"""
         schedule_choice = questionary.select(
@@ -970,7 +1544,7 @@ class CronManager:
                 "Benutzerdefiniert"
             ]
         ).ask()
-        
+
         if schedule_choice == "Jede Minute":
             return "* * * * *"
         elif schedule_choice == "Stündlich":
@@ -978,71 +1552,80 @@ class CronManager:
             return f"{minute} * * * *"
         elif schedule_choice == "Täglich":
             time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
-            hour, minute = time.split(":")
-            return f"{minute} {hour} * * *"
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} * * *"
+            except:
+                return "0 0 * * *"
         elif schedule_choice == "Wöchentlich":
             weekday = questionary.select(
                 "Wochentag:",
-                choices=["Montag", "Dienstag", "Mittwoch", "Donnerstag", 
+                choices=["Montag", "Dienstag", "Mittwoch", "Donnerstag",
                         "Freitag", "Samstag", "Sonntag"]
             ).ask()
-            weekday_num = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", 
+            weekday_num = ["Montag", "Dienstag", "Mittwoch", "Donnerstag",
                           "Freitag", "Samstag", "Sonntag"].index(weekday) + 1
             time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
-            hour, minute = time.split(":")
-            return f"{minute} {hour} * * {weekday_num % 7}"
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} * * {weekday_num % 7}"
+            except:
+                return f"0 0 * * {weekday_num % 7}"
         elif schedule_choice == "Monatlich":
             day = questionary.text("Tag des Monats (1-31):", default="1").ask()
             time = questionary.text("Zeit (HH:MM):", default="00:00").ask()
-            hour, minute = time.split(":")
-            return f"{minute} {hour} {day} * *"
+            try:
+                hour, minute = time.split(":")
+                return f"{minute} {hour} {day} * *"
+            except:
+                return f"0 0 {day} * *"
         elif schedule_choice == "@reboot (Bei Systemstart)":
             return "@reboot"
         else:
             console.print("[yellow]Cron-Format: Minute Stunde Tag Monat Wochentag[/yellow]")
             return questionary.text("Cron-Ausdruck:").ask()
-    
+
     def search_jobs(self):
         """Durchsucht Cronjobs nach Stichwörtern"""
         keyword = questionary.text("Suchbegriff:").ask()
-        
+
         if not keyword:
             return
-        
+
         console.print(f"\n[cyan]Suche nach '{keyword}'...[/cyan]\n")
-        
+
         found = False
         sources = ["Benutzer-Crontab"]
-        
+
         if self.is_root:
             sources.extend([
                 "System-Crontab (/etc/crontab)",
                 "Cron.d Verzeichnis (/etc/cron.d)",
                 "Periodische Jobs (hourly/daily/weekly/monthly)"
             ])
-        
+
         for source in sources:
             jobs = self.list_all_jobs(source)
             matches = []
-            
+
             for job in jobs:
-                if (keyword.lower() in job['command'].lower() or 
+                if (keyword.lower() in job['command'].lower() or
                     keyword.lower() in job['comment'].lower()):
                     matches.append(job)
-            
+
             if matches:
                 found = True
                 console.print(f"\n[green]Gefunden in {source}:[/green]")
                 for match in matches:
                     console.print(f"  • {match['schedule']} - {match['command']}")
-        
+
         if not found:
             console.print(f"[yellow]Keine Treffer für '{keyword}' gefunden[/yellow]")
-    
+
     def validate_crontab(self):
         """Validiert die Crontab-Syntax"""
         console.print("[cyan]Validiere Crontabs...[/cyan]\n")
-        
+
         # Benutzer-Crontab
         try:
             result = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
@@ -1052,7 +1635,7 @@ class CronManager:
                 console.print("[red]✗ Fehler in Benutzer-Crontab[/red]")
         except:
             pass
-        
+
         # System-Crontab
         if self.is_root and os.path.exists('/etc/crontab'):
             try:
@@ -1062,11 +1645,11 @@ class CronManager:
                 console.print("[green]✓ System-Crontab ist lesbar[/green]")
             except Exception as e:
                 console.print(f"[red]✗ Fehler in System-Crontab: {str(e)}[/red]")
-    
+
     def show_job_statistics(self):
         """Zeigt Statistiken über alle Cronjobs an"""
         console.print(Panel("📊 Cronjob-Statistiken", style="bold cyan"))
-        
+
         # Lade Quick Stats aus Logs wenn vorhanden
         try:
             self.cursor.execute("""
@@ -1077,7 +1660,7 @@ class CronManager:
                 WHERE timestamp > datetime('now', '-7 days')
             """)
             log_stats = self.cursor.fetchone()
-            
+
             if log_stats and log_stats[0] > 0:
                 console.print("\n[yellow]📈 Letzte 7 Tage:[/yellow]")
                 success_rate = (log_stats[1] / log_stats[0] * 100) if log_stats[0] > 0 else 0
@@ -1086,17 +1669,17 @@ class CronManager:
                 console.print(f"  • Ø Laufzeit: {log_stats[2]:.2f}s" if log_stats[2] else "  • Ø Laufzeit: N/A")
         except:
             pass
-        
+
         all_jobs = []
         sources = ["Benutzer-Crontab"]
-        
+
         if self.is_root:
             sources.extend([
                 "System-Crontab (/etc/crontab)",
                 "Cron.d Verzeichnis (/etc/cron.d)",
                 "Periodische Jobs (hourly/daily/weekly/monthly)"
             ])
-        
+
         stats = {
             'total': 0,
             'active': 0,
@@ -1112,25 +1695,25 @@ class CronManager:
                 'other': 0
             }
         }
-        
+
         # Sammle alle Jobs
         for source in sources:
             jobs = self.list_all_jobs(source)
             all_jobs.extend(jobs)
             stats['by_source'][source] = len(jobs)
-            
+
             for job in jobs:
                 stats['total'] += 1
-                
+
                 if job['enabled']:
                     stats['active'] += 1
                 else:
                     stats['inactive'] += 1
-                
+
                 # Nach Benutzer
                 user = job.get('user', 'unknown')
                 stats['by_user'][user] = stats['by_user'].get(user, 0) + 1
-                
+
                 # Nach Häufigkeit
                 schedule = job['schedule']
                 if schedule == "* * * * *":
@@ -1145,49 +1728,49 @@ class CronManager:
                     stats['by_frequency']['monthly'] += 1
                 else:
                     stats['by_frequency']['other'] += 1
-        
+
         # Anzeige der Statistiken
         table = Table(box=box.ROUNDED, show_header=False)
         table.add_column("Kategorie", style="cyan")
         table.add_column("Wert", style="white")
-        
+
         table.add_row("Gesamt-Jobs", str(stats['total']))
         table.add_row("Aktive Jobs", f"[green]{stats['active']}[/green]")
         table.add_row("Inaktive Jobs", f"[red]{stats['inactive']}[/red]")
-        
+
         console.print(table)
-        
+
         # Nach Quelle
         if stats['by_source']:
             console.print("\n[yellow]Nach Quelle:[/yellow]")
             source_table = Table(box=box.SIMPLE)
             source_table.add_column("Quelle", style="cyan")
             source_table.add_column("Anzahl", style="white")
-            
+
             for source, count in stats['by_source'].items():
                 if count > 0:
                     source_table.add_row(source, str(count))
-            
+
             console.print(source_table)
-        
+
         # Nach Benutzer
         if len(stats['by_user']) > 1:
             console.print("\n[yellow]Nach Benutzer:[/yellow]")
             user_table = Table(box=box.SIMPLE)
             user_table.add_column("Benutzer", style="cyan")
             user_table.add_column("Anzahl", style="white")
-            
+
             for user, count in sorted(stats['by_user'].items()):
                 user_table.add_row(user, str(count))
-            
+
             console.print(user_table)
-        
+
         # Nach Häufigkeit
         console.print("\n[yellow]Nach Ausführungshäufigkeit:[/yellow]")
         freq_table = Table(box=box.SIMPLE)
         freq_table.add_column("Häufigkeit", style="cyan")
         freq_table.add_column("Anzahl", style="white")
-        
+
         freq_labels = {
             'minute': 'Jede Minute',
             'hourly': 'Stündlich',
@@ -1196,33 +1779,29 @@ class CronManager:
             'monthly': 'Monatlich',
             'other': 'Andere'
         }
-        
+
         for freq, label in freq_labels.items():
             if stats['by_frequency'][freq] > 0:
                 freq_table.add_row(label, str(stats['by_frequency'][freq]))
-        
+
         console.print(freq_table)
-        
+
         # Nächste Ausführung
         console.print("\n[yellow]Nächste geplante Ausführungen:[/yellow]")
         next_runs = []
-        
+
         for job in all_jobs:
             if job['job'] and job['enabled']:
                 try:
-                    # Erstelle Schedule-Objekt aus dem Job
                     schedule = job['job'].schedule()
                     next_run = schedule.get_next(datetime)
                     if next_run:
-                        # Kürze Befehl für bessere Übersicht
                         cmd_display = job['command']
                         if len(cmd_display) > 50:
                             cmd_display = cmd_display[:47] + "..."
                         next_runs.append((next_run, cmd_display, job['user']))
                 except Exception as e:
-                    # Für periodische Jobs ohne CronTab-Objekt
                     if job['schedule'].startswith('@'):
-                        # Spezielle Behandlung für @reboot, @hourly, etc.
                         if job['schedule'] == '@reboot':
                             console.print(f"  • Bei Neustart - {job['command'][:50]}")
                         elif job['schedule'] == '@hourly':
@@ -1244,27 +1823,25 @@ class CronManager:
                             else:
                                 next_month = next_month.replace(month=next_month.month + 1)
                             next_runs.append((next_month, job['command'][:50], job['user']))
-        
+
         # Sortiere nach Zeit
         next_runs.sort(key=lambda x: x[0])
-        
+
         if next_runs:
-            # Zeige nur die nächsten 10 Ausführungen
             for next_run, command, user in next_runs[:10]:
                 time_diff = next_run - datetime.now()
                 if time_diff.total_seconds() > 0:
-                    # Formatiere Zeitdifferenz
                     days = time_diff.days
                     hours, remainder = divmod(time_diff.seconds, 3600)
                     minutes, _ = divmod(remainder, 60)
-                    
+
                     if days > 0:
                         time_str = f"in {days}d {hours}h"
                     elif hours > 0:
                         time_str = f"in {hours}h {minutes}m"
                     else:
                         time_str = f"in {minutes}m"
-                    
+
                     console.print(f"  • {next_run.strftime('%d.%m %H:%M')} ({time_str}) - [{user}] {command}")
         else:
             console.print("  [gray]Keine geplanten Ausführungen gefunden[/gray]")
@@ -1276,31 +1853,31 @@ def clear_screen():
 def show_main_menu():
     """Zeigt das Hauptmenü an"""
     manager = CronManager()
-    
+
     # Bildschirm löschen beim Start
     clear_screen()
-    
+
     console.print(Panel(
         "[bold blue]Cron Manager[/bold blue]\n"
         "Modernes Tool zur Verwaltung von Cronjobs\n"
         f"[yellow]{'Root-Modus' if manager.is_root else 'Benutzer-Modus'}[/yellow]\n"
         f"[cyan]System: {manager.distro}[/cyan]",
-        title="🕐 Willkommen",
+        title="🕒 Willkommen",
         border_style="blue"
     ))
-    
+
     # Zeige wichtige Systeminformationen
     if manager.is_root:
         total_jobs = len(manager.list_all_jobs("Benutzer-Crontab"))
         system_jobs = 0
         if os.path.exists('/etc/crontab'):
             system_jobs += len(manager.list_all_jobs("System-Crontab (/etc/crontab)"))
-        
+
         console.print(f"\n[cyan]Aktive Jobs:[/cyan] {total_jobs} Benutzer | {system_jobs} System")
-    
+
     while True:
         console.print("\n")
-        
+
         menu_items = [
             "📋 Jobs anzeigen",
             "➕ Job hinzufügen",
@@ -1316,70 +1893,70 @@ def show_main_menu():
             "💾 Backup erstellen",
             "🔄 Bildschirm aktualisieren"
         ]
-        
+
         if manager.is_root:
             menu_items.append("⚙️  System-Job hinzufügen")
-        
+
         menu_items.append("🚪 Beenden")
-        
+
         choice = questionary.select(
             "Was möchten Sie tun?",
             choices=menu_items
         ).ask()
-        
+
         if not choice or "Beenden" in choice:
             console.print("[yellow]Auf Wiedersehen![/yellow]")
             break
-        
+
         elif "anzeigen" in choice:
             cron_type = manager.get_cron_type()
             if cron_type != "Zurück":
                 manager.display_jobs_table(cron_type)
-        
+
         elif "hinzufügen" in choice:
             manager.add_job()
-        
+
         elif "bearbeiten" in choice:
             cron_type = manager.get_cron_type()
             if cron_type != "Zurück":
                 jobs = manager.list_all_jobs(cron_type)
                 manager.display_jobs_table(cron_type)
                 manager.edit_job(jobs)
-        
+
         elif "durchsuchen" in choice:
             manager.search_jobs()
-        
+
         elif "exportieren" in choice:
             manager.export_jobs()
-        
+
         elif "importieren" in choice:
             manager.import_jobs()
-        
+
         elif "validieren" in choice:
             manager.validate_crontab()
-        
+
         elif "Backup" in choice:
             manager.create_backup()
-        
+
         elif "Statistiken" in choice:
             manager.show_job_statistics()
-        
+
         elif "Logs" in choice:
             manager.view_job_logs()
-        
+
         elif "Überwachung" in choice:
             manager.monitor_jobs()
-        
+
         elif "Benachrichtigungen" in choice:
             manager.configure_notifications()
-        
+
         elif "System-Job" in choice:
             manager.add_system_job()
-        
+
         elif "aktualisieren" in choice:
             clear_screen()
             console.print("[green]✓ Bildschirm aktualisiert[/green]")
-            return show_main_menu()  # Neustart des Menüs
+            return show_main_menu()
 
 def main():
     """Hauptfunktion"""
@@ -1387,7 +1964,7 @@ def main():
     if os.name != 'posix':
         console.print("[red]Dieses Tool funktioniert nur auf Linux/Unix-Systemen![/red]")
         sys.exit(1)
-    
+
     # Parse Command-Line-Argumente
     if len(sys.argv) > 1:
         if sys.argv[1] == '--help' or sys.argv[1] == '-h':
@@ -1412,36 +1989,36 @@ def main():
   ./cron_manager.py --list         # Jobs anzeigen
             """)
             return
-        
+
         elif sys.argv[1] == '--version' or sys.argv[1] == '-v':
             console.print("[cyan]Cron Manager v1.0.0[/cyan]")
             return
-        
+
         elif sys.argv[1] == '--backup' or sys.argv[1] == '-b':
             manager = CronManager()
             clear_screen()
             console.print("[cyan]Erstelle Backup...[/cyan]")
             manager.create_backup()
             return
-        
+
         elif sys.argv[1] == '--list' or sys.argv[1] == '-l':
             manager = CronManager()
             clear_screen()
             manager.display_jobs_table("Benutzer-Crontab")
             return
-        
+
         elif sys.argv[1] == '--stats' or sys.argv[1] == '-s':
             manager = CronManager()
             clear_screen()
             manager.show_job_statistics()
             return
-        
+
         elif sys.argv[1] == '--validate':
             manager = CronManager()
             clear_screen()
             manager.validate_crontab()
             return
-    
+
     # Normaler interaktiver Modus
     try:
         show_main_menu()
